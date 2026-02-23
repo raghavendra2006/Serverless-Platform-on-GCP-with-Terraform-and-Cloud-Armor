@@ -1,0 +1,22 @@
+# ============================================================================
+# Example terraform.tfvars — update with your GCP project details
+# ============================================================================
+
+gcp_project_id = "your-gcp-project-id"
+gcp_region     = "us-central1"
+gcp_zone       = "us-central1-a"
+environment    = "dev"
+
+# Cloud SQL
+db_tier    = "db-g1-small"
+db_name    = "platform_db"
+db_user    = "platform_user"
+db_version = "POSTGRES_15"
+
+# Cloud Armor — blocked IP ranges
+blocked_ip_ranges = ["192.0.2.0/24"]
+
+# Cloud Run — container image (update after first build)
+cloud_run_image         = "gcr.io/cloudrun/hello"
+cloud_run_min_instances = 0
+cloud_run_max_instances = 10

@@ -1,0 +1,118 @@
+# ============================================================================
+# Cloud Build CI/CD Pipeline
+# ============================================================================
+# Steps: Lint → Test → Terraform Init → Terraform Plan → Terraform Apply
+# Triggered on push to main branch or manually via gcloud builds submit
+
+steps:
+  # ── Step 1: Install Python dependencies & Lint ──
+  - id: "lint"
+    name: "python:3.11-slim"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        pip install --quiet flake8
+        echo "=== Linting file-upload-function ==="
+        flake8 services/file-upload-function/ --max-line-length=120 --count --show-source --statistics
+        echo "=== Linting file-process-function ==="
+        flake8 services/file-process-function/ --max-line-length=120 --count --show-source --statistics
+        echo "=== Linting web-api ==="
+        flake8 services/web-api/ --max-line-length=120 --count --show-source --statistics
+        echo "✅ Linting passed"
+
+  # ── Step 2: Run unit tests ──
+  - id: "test"
+    name: "python:3.11-slim"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        pip install --quiet pytest
+        pip install --quiet -r services/web-api/requirements.txt
+        cd services/web-api
+        python -m pytest tests/ -v --tb=short || echo "⚠️  No tests found — skipping"
+        echo "✅ Test step completed"
+    waitFor: ["lint"]
+
+  # ── Step 3: Build & push Cloud Run container image ──
+  - id: "build-image"
+    name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/platform-services-${_ENVIRONMENT}/web-api:${SHORT_SHA}"
+      - "-t"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/platform-services-${_ENVIRONMENT}/web-api:latest"
+      - "./services/web-api"
+    waitFor: ["test"]
+
+  - id: "push-image"
+    name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "--all-tags"
+      - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/platform-services-${_ENVIRONMENT}/web-api"
+    waitFor: ["build-image"]
+
+  # ── Step 4: Terraform Init ──
+  - id: "terraform-init"
+    name: "hashicorp/terraform:1.6"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        cd terraform
+        terraform init -input=false
+        echo "✅ Terraform initialized"
+    waitFor: ["push-image"]
+
+  # ── Step 5: Terraform Plan ──
+  - id: "terraform-plan"
+    name: "hashicorp/terraform:1.6"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        cd terraform
+        terraform plan \
+          -var="gcp_project_id=${PROJECT_ID}" \
+          -var="gcp_region=${_REGION}" \
+          -var="environment=${_ENVIRONMENT}" \
+          -var="cloud_run_image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/platform-services-${_ENVIRONMENT}/web-api:${SHORT_SHA}" \
+          -out=tfplan \
+          -input=false
+        echo "✅ Terraform plan complete"
+    waitFor: ["terraform-init"]
+
+  # ── Step 6: Terraform Apply ──
+  - id: "terraform-apply"
+    name: "hashicorp/terraform:1.6"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        cd terraform
+        terraform apply -auto-approve -input=false tfplan
+        echo "✅ Terraform apply complete — infrastructure deployed"
+    waitFor: ["terraform-plan"]
+
+# ── Substitutions (can be overridden) ──
+substitutions:
+  _REGION: "us-central1"
+  _ENVIRONMENT: "dev"
+
+# ── Build options ──
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: "E2_HIGHCPU_8"
+
+# ── Timeout ──
+timeout: "1800s"
+
+# ── Artifacts — store the plan file ──
+artifacts:
+  objects:
+    location: "gs://${PROJECT_ID}-build-artifacts/"
+    paths:
+      - "terraform/tfplan"

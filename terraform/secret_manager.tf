@@ -1,0 +1,27 @@
+# ============================================================================
+# Secret Manager — Database Password
+# ============================================================================
+
+resource "google_secret_manager_secret" "db_password" {
+  secret_id = "cloudsql-db-password-${var.environment}"
+
+  replication {
+    auto {}
+  }
+
+  labels = local.common_labels
+
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_secret_manager_secret_version" "db_password" {
+  secret      = google_secret_manager_secret.db_password.id
+  secret_data = random_password.db_password.result
+}
+
+# IAM: Allow Cloud Run SA to access the secret
+resource "google_secret_manager_secret_iam_member" "cloudrun_access" {
+  secret_id = google_secret_manager_secret.db_password.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.cloud_run_api.email}"
+}

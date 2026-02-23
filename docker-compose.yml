@@ -1,0 +1,75 @@
+# ============================================================================
+# Docker Compose — Local Development
+# ============================================================================
+# Usage:
+#   cp .env.example .env
+#   docker-compose up -d --build
+#   docker-compose ps        # verify healthy status
+#   docker-compose logs -f   # tail logs
+
+version: "3.9"
+
+services:
+  # ── Web API Service ──────────────────────────────────────
+  app:
+    build:
+      context: ./services/web-api
+      dockerfile: Dockerfile
+    container_name: serverless-platform-api
+    ports:
+      - "8080:8080"
+    environment:
+      - ENVIRONMENT=local
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-platform_db}
+      - DB_USER=${POSTGRES_USER:-platform_user}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-local_dev_password_123}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-local-project}
+      - GCS_BUCKET_NAME=${GCS_BUCKET_NAME:-local-uploads}
+      - PORT=8080
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - platform-network
+
+  # ── PostgreSQL Database ──────────────────────────────────
+  db:
+    image: postgres:15-alpine
+    container_name: serverless-platform-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-platform_db}
+      - POSTGRES_USER=${POSTGRES_USER:-platform_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-local_dev_password_123}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-platform_user} -d ${POSTGRES_DB:-platform_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - platform-network
+
+# ── Volumes ────────────────────────────────────────────────
+volumes:
+  pgdata:
+    driver: local
+
+# ── Networks ───────────────────────────────────────────────
+networks:
+  platform-network:
+    driver: bridge

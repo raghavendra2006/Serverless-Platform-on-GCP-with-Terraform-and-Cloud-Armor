@@ -1,0 +1,54 @@
+# ============================================================================
+# .gitignore — Enterprise Serverless Platform
+# ============================================================================
+
+# ── Terraform ──────────────────────────────────────────────
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.build/
+terraform/tfplan
+*.tfplan
+
+# ── Python ─────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# ── Docker ─────────────────────────────────────────────────
+.docker/
+
+# ── Environment ───────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── IDE ────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ───────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Secrets (never commit!) ────────────────────────────────
+*.pem
+*.key
+credentials.json
+service-account.json
