@@ -359,9 +359,3 @@ For detailed incident response procedures, see the [Runbook](docs/runbook.md).
 2. Create a feature branch: `git checkout -b feature/my-feature`
 3. Make changes and test locally with `docker-compose up`
 4. Submit a pull request
-
----
-
-## License
-
-This project is licensed under the MIT License.
